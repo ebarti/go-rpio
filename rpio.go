@@ -100,10 +100,10 @@ const (
 
 // BCM 2711 has a different mechanism for pull-up/pull-down/enable
 const (
-	GPPUPPDN0 = 57        // Pin pull-up/down for pins 15:0 
-	GPPUPPDN1 = 58        // Pin pull-up/down for pins 31:16 
-	GPPUPPDN2 = 59        // Pin pull-up/down for pins 47:32 
-	GPPUPPDN3 = 60        // Pin pull-up/down for pins 57:48
+	GPPUPPDN0 = 57 // Pin pull-up/down for pins 15:0
+	GPPUPPDN1 = 58 // Pin pull-up/down for pins 31:16
+	GPPUPPDN2 = 59 // Pin pull-up/down for pins 47:32
+	GPPUPPDN3 = 60 // Pin pull-up/down for pins 57:48
 )
 
 var (
@@ -212,8 +212,13 @@ func (pin Pin) Freq(freq int) {
 }
 
 // DutyCycle: Set duty cycle for Pwm pin (see doc of SetDutyCycle)
-func (pin Pin) DutyCycle(dutyLen, cycleLen uint32) {
+func (pin Pin) SetDutyCycle(dutyLen, cycleLen uint32) {
 	SetDutyCycle(pin, dutyLen, cycleLen)
+}
+
+// DutyCycle: Get duty cycle for Pwm pin (see doc of GetDutyCycle)
+func (pin Pin) GetDutyCycle() (uint32, uint32, error) {
+	return GetDutyCycle(pin)
 }
 
 // Mode: Set pin Mode
@@ -253,7 +258,7 @@ func (pin Pin) PullOff() {
 
 func (pin Pin) ReadPull() Pull {
 	if !isBCM2711() {
-		return PullNone	// Can't read pull-up/pull-down state on other Pi boards
+		return PullNone // Can't read pull-up/pull-down state on other Pi boards
 	}
 
 	reg := GPPUPPDN0 + (uint8(pin) >> 4)
@@ -266,7 +271,7 @@ func (pin Pin) ReadPull() Pull {
 	case 2:
 		return PullDown
 	default:
-		return PullNone	// Invalid
+		return PullNone // Invalid
 	}
 }
 
@@ -460,51 +465,51 @@ func EdgeDetected(pin Pin) bool {
 }
 
 func PullMode(pin Pin, pull Pull) {
-		
+
 	memlock.Lock()
 	defer memlock.Unlock()
 
 	if isBCM2711() {
 		pullreg := GPPUPPDN0 + (pin >> 4)
 		pullshift := (pin & 0xf) << 1
-		
-		var p uint32 
-		
+
+		var p uint32
+
 		switch pull {
 		case PullOff:
 			p = 0
 		case PullUp:
 			p = 1
 		case PullDown:
-			p = 2;
+			p = 2
 		}
-		
+
 		// This is verbatim C code from raspi-gpio.c
 		pullbits := gpioMem[pullreg]
 		pullbits &= ^(3 << pullshift)
 		pullbits |= (p << pullshift)
-		gpioMem[pullreg]= pullbits
+		gpioMem[pullreg] = pullbits
 	} else {
 		// Pull up/down/off register has offset 38 / 39, pull is 37
 		pullClkReg := pin/32 + 38
 		pullReg := 37
 		shift := pin % 32
-		
+
 		switch pull {
 		case PullDown, PullUp:
 			gpioMem[pullReg] |= uint32(pull)
 		case PullOff:
 			gpioMem[pullReg] &^= 3
 		}
-		
+
 		// Wait for value to clock in, this is ugly, sorry :(
 		time.Sleep(time.Microsecond)
-		
+
 		gpioMem[pullClkReg] = 1 << shift
-		
+
 		// Wait for value to clock in
 		time.Sleep(time.Microsecond)
-		
+
 		gpioMem[pullReg] &^= 3
 		gpioMem[pullClkReg] = 0
 	}
@@ -638,6 +643,34 @@ func SetDutyCycle(pin Pin, dutyLen, cycleLen uint32) {
 	// NOTE without root permission this changes will simply do nothing successfully
 }
 
+// SetDutyCycle: Gets the cycle length (range) and duty length (data) for Pwm pin in M/S mode
+//		It returns an error if the PWM is not started on this pin.
+// The channels are:
+//   channel 1 (pwm0) for pins 12, 18, 40
+//   channel 2 (pwm1) for pins 13, 19, 41, 45.
+func GetDutyCycle(pin Pin) (uint32, uint32, error) {
+	const pwmCtlReg = 0
+	var (
+		pwmDatReg uint
+		pwmRngReg uint
+	)
+
+	switch pin {
+	case 12, 18, 40: // channel pwm0
+		pwmRngReg = 4
+		pwmDatReg = 5
+	case 13, 19, 41, 45: // channel pwm1
+		pwmRngReg = 8
+		pwmDatReg = 9
+	default:
+		return 0, 0, errors.New("Pin not compatible")
+	}
+	if false == IsPwmRunning() {
+		return 0, 0, errors.New("Pwm not running")
+	}
+	return pwmMem[pwmDatReg], pwmMem[pwmRngReg], nil
+}
+
 // StopPwm: Stop pwm for both channels
 func StopPwm() {
 	const pwmCtlReg = 0
@@ -650,6 +683,18 @@ func StartPwm() {
 	const pwmCtlReg = 0
 	const pwen = 1
 	pwmMem[pwmCtlReg] |= pwen<<8 | pwen
+}
+
+// IsPwmRunning returns true fi pwm is running
+func IsPwmRunning() bool {
+	const pwmCtlReg = 0
+	const pwen = 1
+	var runningState uint32
+	runningState |= pwen<<8 | pwen
+	if pwmMem[pwmCtlReg] == runningState {
+		return true
+	}
+	return false
 }
 
 // EnableIRQs: Enables given IRQs (by setting bit to 1 at intended position).
