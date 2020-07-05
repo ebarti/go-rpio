@@ -86,6 +86,29 @@ type State uint8
 type Pull uint8
 type Edge uint8
 
+type Pinner interface {
+	Input()
+	Output()
+	Clock()
+	Pwm()
+	High()
+	Low()
+	Toggle()
+	Freq(int)
+	SetDutyCycle(uint32, uint32)
+	GetDutyCycle() (uint32, uint32, error)
+	Mode(Mode)
+	Write(State)
+	Read() State
+	Pull(Pull)
+	PullUp()
+	PullDown()
+	PullOff()
+	ReadPull() Pull
+	Detect(Edge)
+	EdgeDetected() bool
+}
+
 // Memory offsets for gpio, see the spec for more details
 const (
 	bcm2835Base = 0x20000000
