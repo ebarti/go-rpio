@@ -124,8 +124,8 @@ const (
 // BCM 2711 has a different mechanism for pull-up/pull-down/enable
 const (
 	GPPUPPDN0 = 57 // Pin pull-up/down for pins 15:0
-	GPPUPPDN1 = 58 // Pin pull-up/down for pins 31:16
-	GPPUPPDN2 = 59 // Pin pull-up/down for pins 47:32
+	//GPPUPPDN1 = 58 // Pin pull-up/down for pins 31:16
+	//GPPUPPDN2 = 59 // Pin pull-up/down for pins 47:32
 	GPPUPPDN3 = 60 // Pin pull-up/down for pins 57:48
 )
 
